@@ -2,38 +2,46 @@ import Adafruit_DHT
 import os
 import glob
 import time
+import datetime
+import subprocess
 
 import Adafruit_GPIO.SPI as SPI
 import Adafruit_SSD1306
 
+#oled defs
 from PIL import Image
 from PIL import ImageDraw
 from PIL import ImageFont
 
-import subprocess
+#webserver defs
+from flask import Flask, render_template
 
+#Display definitions
 RST = None
 DC = 23
-SPI_PORT = 0  # setting  i2c settings
+SPI_PORT = 0
 SPI_DEVICE = 0
+disp = Adafruit_SSD1306.SSD1306_128_32(rst=RST)
 
-disp = Adafruit_SSD1306.SSD1306_128_32(rst=RST) # define the display
-
-os.system('modprobe w1-gpio') #initialize 1 wire temp
+# define temp sensor mount point
+os.system('modprobe w1-gpio') 
 os.system('modprobe w1-therm')
- 
 base_dir = '/sys/bus/w1/devices/'
 device_folder = glob.glob(base_dir + '28*')[0]
 device_file = device_folder + '/w1_slave' #ref temp location
 
+#temp sensor defs
 DHT_SENSOR = Adafruit_DHT.DHT22
-DHT_PIN = 27            # BCM PIN (Board Pin is 13)
-DSB_PIN = 17            # BCM PIN (Board Pin is 11)
+DHT_PIN = 27  # BCM PIN (Board Pin is 13)
+DSB_PIN = 17  # BCM PIN (Board Pin is 11)
+airTemp = 0
+airHum = 0
+waterTemp = 0
 
 #Prep display
-disp.begin() #init display
+disp.begin()
 disp.clear()
-disp.display() # wipe display
+disp.display()
 width = disp.width
 height = disp.height
 image = Image.new('1', (width, height))
@@ -49,12 +57,14 @@ font = ImageFont.load_default()
 cmd = "hostname -I | cut -d\' \' -f1"
 IP = subprocess.check_output(cmd, shell = True )
 
+#read dsb temps
 def read_temp_raw():
     f = open(device_file, 'r')
     lines = f.readlines()
     f.close()
     return lines
 
+#convert dsp temps
 def read_temp():
     lines = read_temp_raw()
     while lines[0].strip()[-3:] != 'YES':
@@ -67,24 +77,36 @@ def read_temp():
         temp_f = temp_c * 9.0 / 5.0 + 32.0
         return temp_c
 
+#main loop
 while True:
+    #get temps & time
     airHum, airTemp = Adafruit_DHT.read_retry(DHT_SENSOR, DHT_PIN)
     waterTemp = read_temp()
-
+    now = datetime.datetime.now()
+    timeString = now.strftime("%Y-%m-%d %H:%M")
+    #dump temps to console
     if airHum is not None and airTemp is not None and waterTemp is not None:
-        print("WaterTemp={0:0.1f}*C CaseTemp={1:0.1f}*C CaseHum={2:0.1f}%".format(waterTemp, airTemp, airHum))
+        print("Water Temp={0:0.1f}*C Air Temp={1:0.1f}*C Air Hum={2:0.1f}%".format(waterTemp, airTemp, airHum))
     else:
         print("Failed to retrieve data from humidity sensor")
 
-    # Write lines of text.
-    draw.text((x, top),       "      ",  font=font, fill=255)
+    # Display data on oled
+    draw.text((x, top),       timeString,  font=font, fill=255)
     draw.text((x, top+8),     "Air Temp:   %9.1f" % airTemp, font=font, fill=255)
     draw.text((x, top+16),    "Air Hum:    %9.1f" % airHum, font=font, fill=255)
     draw.text((x, top+25),    "Water Temp: %9.1f" % waterTemp, font=font, fill=255)
 
-    # Display image.
+    # Display image (box)
     disp.image(image)
     disp.display()
 
+    #write values to file
+    file = open("data.txt", "w+")
+    file.write("%2.1f\n" % airTemp)
+    file.write("%2.1f\n" % airHum)
+    file.write("%2.1f\n" % waterTemp)
+    file.write(timeString)
+    file.close()
+
     #sleep for a sec
-    time.sleep(1)
+    time.sleep(10)
