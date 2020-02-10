@@ -12,7 +12,6 @@ def index():
       timeString = file.readline()
    file.close()
 
-
    templateData = {
       'time': timeString,
       'airHum': airHum,
