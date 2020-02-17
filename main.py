@@ -91,6 +91,8 @@ while True:
         print("Failed to retrieve data from humidity sensor")
 
     # Display data on oled
+    # Draw a black filled box to clear the image.
+    draw.rectangle((0,0,width,height), outline=0, fill=0)
     draw.text((x, top),       timeString,  font=font, fill=255)
     draw.text((x, top+8),     "Air Temp:   %9.1f" % airTemp, font=font, fill=255)
     draw.text((x, top+16),    "Air Hum:    %9.1f" % airHum, font=font, fill=255)
