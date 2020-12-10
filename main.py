@@ -4,6 +4,7 @@ import glob
 import time
 import datetime
 import subprocess
+import blynklib
 
 import Adafruit_GPIO.SPI as SPI
 import Adafruit_SSD1306
@@ -16,6 +17,14 @@ from PIL import ImageFont
 #webserver defs
 from flask import Flask, render_template
 
+#blynk setup
+from config import * # pull in blynk credentials
+blynk = blynklib.Blynk(BLYNK_AUTH, server=server, port=port, heartbeat=600)
+
+#blynk vars
+pubDur=3600
+lastTime = 0
+
 #Display definitions
 RST = None
 DC = 23
@@ -24,11 +33,14 @@ SPI_DEVICE = 0
 disp = Adafruit_SSD1306.SSD1306_128_32(rst=RST)
 
 # define temp sensor mount point
-os.system('modprobe w1-gpio') 
-os.system('modprobe w1-therm')
+os.system('modprobe w1-gpio')
+try: os.system('modprobe w1-therm') 
+except: print("No temp probe connected")
 base_dir = '/sys/bus/w1/devices/'
-device_folder = glob.glob(base_dir + '28*')[0]
-device_file = device_folder + '/w1_slave' #ref temp location
+try: device_folder = glob.glob(base_dir + '28*')[0]
+except: print("No temp probe connected")
+try: device_file = device_folder + '/w1_slave' #ref temp location
+except: print("No temp probe connected")
 
 #temp sensor defs
 DHT_SENSOR = Adafruit_DHT.DHT22
@@ -75,18 +87,32 @@ def read_temp():
         temp_string = lines[1][equals_pos+2:]
         temp_c = float(temp_string) / 1000.0
         temp_f = temp_c * 9.0 / 5.0 + 32.0
-        return temp_c
+        return temp_f
 
 #main loop
 while True:
+
+    #let Blynk do its thing
+    blynk.run()
+
     #get temps & time
-    airHum, airTemp = Adafruit_DHT.read_retry(DHT_SENSOR, DHT_PIN)
-    waterTemp = read_temp()
+
+    try:
+        airHum, airTemp = Adafruit_DHT.read_retry(DHT_SENSOR, DHT_PIN)
+    except:
+        airHum = 100
+        airTemp = 100
+
+    try:
+        waterTemp = read_temp()
+    except:
+        waterTemp = 100
+
     now = datetime.datetime.now()
     timeString = now.strftime("%Y-%m-%d %H:%M")
     #dump temps to console
     if airHum is not None and airTemp is not None and waterTemp is not None:
-        print("Water Temp={0:0.1f}*C Air Temp={1:0.1f}*C Air Hum={2:0.1f}%".format(waterTemp, airTemp, airHum))
+        print("Water Temp={0:0.1f}*F Air Temp={1:0.1f}*C Air Hum={2:0.1f}%".format(waterTemp, airTemp, airHum))
     else:
         print("Failed to retrieve data from humidity sensor")
 
@@ -103,12 +129,19 @@ while True:
     disp.display()
 
     #write values to file
-    file = open("data.txt", "w+")
+    file = open("/home/pi/weatherStation/data.txt", "w+")
     file.write("%2.1f\n" % airTemp)
     file.write("%2.1f\n" % airHum)
     file.write("%2.1f\n" % waterTemp)
     file.write(timeString)
     file.close()
 
+    #only publish at the set interval (60s)
+    if (time.time() - lastTime) > pubDur:
+         blynk.virtual_write(1, airTemp)
+         blynk.virtual_write(2, waterTemp)
+         blynk.virtual_write(3, airHum)
+         lastTime = time.time()
+
     #sleep for a sec
-    time.sleep(10)
+    time.sleep(60)

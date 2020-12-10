@@ -5,7 +5,7 @@ app = Flask(__name__)
 @app.route("/")
 def index():
 
-   with open ('data.txt') as file:
+   with open ('/home/pi/weatherStation/data.txt') as file:
       airTemp = file.readline()
       airHum = file.readline()
       waterTemp = file.readline()
