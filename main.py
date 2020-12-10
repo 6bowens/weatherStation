@@ -5,7 +5,6 @@ import time
 import datetime
 import subprocess
 import blynklib
-
 import Adafruit_GPIO.SPI as SPI
 import Adafruit_SSD1306
 
@@ -18,7 +17,7 @@ from PIL import ImageFont
 from flask import Flask, render_template
 
 #blynk setup
-from config import * # pull in blynk credentials
+from config import * # pull in blynk credentials - port is called http.port"
 blynk = blynklib.Blynk(BLYNK_AUTH, server=server, port=port, heartbeat=600)
 
 #blynk vars
@@ -34,7 +33,7 @@ disp = Adafruit_SSD1306.SSD1306_128_32(rst=RST)
 
 # define temp sensor mount point
 os.system('modprobe w1-gpio')
-try: os.system('modprobe w1-therm') 
+try: os.system('modprobe w1-therm')
 except: print("No temp probe connected")
 base_dir = '/sys/bus/w1/devices/'
 try: device_folder = glob.glob(base_dir + '28*')[0]
@@ -96,20 +95,18 @@ while True:
     blynk.run()
 
     #get temps & time
-
     try:
         airHum, airTemp = Adafruit_DHT.read_retry(DHT_SENSOR, DHT_PIN)
     except:
         airHum = 100
         airTemp = 100
-
     try:
         waterTemp = read_temp()
     except:
         waterTemp = 100
-
     now = datetime.datetime.now()
     timeString = now.strftime("%Y-%m-%d %H:%M")
+
     #dump temps to console
     if airHum is not None and airTemp is not None and waterTemp is not None:
         print("Water Temp={0:0.1f}*F Air Temp={1:0.1f}*C Air Hum={2:0.1f}%".format(waterTemp, airTemp, airHum))
@@ -136,12 +133,12 @@ while True:
     file.write(timeString)
     file.close()
 
-    #only publish at the set interval (60s)
+    #publish at set interval to Blynk
     if (time.time() - lastTime) > pubDur:
          blynk.virtual_write(1, airTemp)
          blynk.virtual_write(2, waterTemp)
          blynk.virtual_write(3, airHum)
          lastTime = time.time()
 
-    #sleep for a sec
+    #sleep for a wink
     time.sleep(60)
