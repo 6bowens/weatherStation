@@ -21,7 +21,7 @@ from config import * # pull in blynk credentials - port is called http.port"
 blynk = blynklib.Blynk(BLYNK_AUTH, server=server, port=port, heartbeat=600)
 
 #blynk vars
-pubDur=3600
+pubDur=300
 lastTime = 0
 
 #Display definitions
@@ -112,6 +112,9 @@ while True:
         print("Water Temp={0:0.1f}*F Air Temp={1:0.1f}*C Air Hum={2:0.1f}%".format(waterTemp, airTemp, airHum))
     else:
         print("Failed to retrieve data from humidity sensor")
+        waterTemp = 0
+        airTemp = 0
+        airHum = 0
 
     # Display data on oled
     # Draw a black filled box to clear the image.
@@ -123,22 +126,28 @@ while True:
 
     # Display image (box)
     disp.image(image)
-    disp.display()
+    try:
+       disp.display()
+    except:
+       print("Display not working")
 
     #write values to file
-    file = open("/home/pi/weatherStation/data.txt", "w+")
-    file.write("%2.1f\n" % airTemp)
-    file.write("%2.1f\n" % airHum)
-    file.write("%2.1f\n" % waterTemp)
-    file.write(timeString)
-    file.close()
+    try:
+       file = open("/home/pi/weatherStation/data.txt", "w")
+       file.write("%2.1f\n" % airTemp)
+       file.write("%2.1f\n" % airHum)
+       file.write("%2.1f\n" % waterTemp)
+       file.write(timeString)
+       file.close()
+    except:
+       print("Can't write to disk")
 
     #publish at set interval to Blynk
-    if (time.time() - lastTime) > pubDur:
+    if ((time.time() - lastTime) > pubDur) and airHum != 0:
          blynk.virtual_write(1, airTemp)
          blynk.virtual_write(2, waterTemp)
          blynk.virtual_write(3, airHum)
          lastTime = time.time()
 
     #sleep for a wink
-    time.sleep(60)
+    time.sleep(300)
